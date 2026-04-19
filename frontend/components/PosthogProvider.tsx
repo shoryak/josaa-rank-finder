@@ -8,7 +8,8 @@ export default function PosthogProvider({ children }: { children: React.ReactNod
     const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
     if (!key) return;
     posthog.init(key, {
-      api_host: "https://app.posthog.com",
+      api_host: "https://us.i.posthog.com",
+      defaults: "2026-01-30",
       capture_pageview: true,
       capture_pageleave: true,
     });
