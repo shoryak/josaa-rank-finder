@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import posthog from "posthog-js";
 import SearchForm, { FormValues } from "@/components/SearchForm";
 import ResultsTable, { Result } from "@/components/ResultsTable";
 
@@ -34,9 +35,17 @@ export default function Home() {
         throw new Error(`Server error: ${res.status}`);
       }
       const data = await res.json();
+      const resultCount = data.total ?? 0;
       setResults(data.results ?? []);
-      setTotal(data.total ?? 0);
+      setTotal(resultCount);
       setFetchState("success");
+      posthog.capture("search", {
+        rank: values.rank,
+        category: values.category,
+        gender: values.gender,
+        state: values.state,
+        results_count: resultCount,
+      });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error";
       setErrorMsg(message);
