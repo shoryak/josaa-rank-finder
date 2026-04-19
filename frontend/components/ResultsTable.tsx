@@ -43,9 +43,9 @@ function matchesBranch(branch: string, keywords: string[]) {
 }
 
 function getHighlights(results: Result[]) {
-  const cse = results.filter((r) => matchesBranch(r.branch, CSE_KEYWORDS)).slice(0, 3);
-  const ee = results.filter((r) => matchesBranch(r.branch, EE_KEYWORDS)).slice(0, 3);
-  const mnc = results.filter((r) => matchesBranch(r.branch, MNC_KEYWORDS)).slice(0, 3);
+  const cse = results.filter((r) => matchesBranch(r.branch, CSE_KEYWORDS)).slice(0, 10);
+  const ee = results.filter((r) => matchesBranch(r.branch, EE_KEYWORDS)).slice(0, 10);
+  const mnc = results.filter((r) => matchesBranch(r.branch, MNC_KEYWORDS)).slice(0, 10);
 
   // Top 5 NITs by NIRF — one best branch per NIT
   const seen = new Set<string>();
@@ -57,7 +57,7 @@ function getHighlights(results: Result[]) {
       seen.add(r.institute);
       return true;
     })
-    .slice(0, 5);
+    .slice(0, 10);
 
   return { cse, ee, mnc, topNITs };
 }
@@ -69,6 +69,8 @@ const CARD_STYLES: Record<string, { border: string; header: string; badge: strin
   orange: { border: "border-orange-200", header: "bg-orange-50 text-orange-700", badge: "bg-orange-100 text-orange-700" },
 };
 
+const DEFAULT_VISIBLE = 3;
+
 function HighlightCard({ title, accent, items, userRank, showNirf }: {
   title: string;
   accent: keyof typeof CARD_STYLES;
@@ -76,15 +78,17 @@ function HighlightCard({ title, accent, items, userRank, showNirf }: {
   userRank: number;
   showNirf?: boolean;
 }) {
+  const [expanded, setExpanded] = useState(false);
   if (items.length === 0) return null;
   const s = CARD_STYLES[accent];
+  const visible = expanded ? items : items.slice(0, DEFAULT_VISIBLE);
   return (
     <div className={`rounded-2xl border ${s.border} bg-white overflow-hidden shadow-sm`}>
       <div className={`px-5 py-3.5 ${s.header}`}>
         <p className="text-sm font-bold">{title}</p>
       </div>
       <div className="divide-y divide-slate-100">
-        {items.map((r, i) => {
+        {visible.map((r, i) => {
           const isBorderline = r.closing_rank - userRank <= BORDERLINE_MARGIN;
           return (
             <div key={i} className="flex items-center justify-between gap-3 px-5 py-3.5">
@@ -109,6 +113,14 @@ function HighlightCard({ title, accent, items, userRank, showNirf }: {
           );
         })}
       </div>
+      {items.length > DEFAULT_VISIBLE && (
+        <button
+          onClick={() => setExpanded((e) => !e)}
+          className={`w-full py-2.5 text-xs font-semibold border-t ${s.border} ${s.header} hover:opacity-80 transition`}
+        >
+          {expanded ? "Show less" : `Show ${items.length - DEFAULT_VISIBLE} more`}
+        </button>
+      )}
     </div>
   );
 }
