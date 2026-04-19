@@ -16,4 +16,5 @@ RUN cd frontend && npm install && npm run build
 RUN pip install -r backend/requirements.txt
 
 EXPOSE 8000
-CMD cd backend && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
+WORKDIR /app/backend
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
