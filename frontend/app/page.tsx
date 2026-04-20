@@ -64,28 +64,23 @@ export default function Home() {
           Find Your Best{" "}
           <span className="text-blue-600">College Option</span>
         </h1>
-        <p className="mt-4 max-w-xl mx-auto text-lg text-slate-600">
-          Enter your JEE rank, category, gender, and home state to see every
-          NIT, IIIT, and GFTI you can get into — sorted from toughest to
-          easiest.
-        </p>
       </section>
 
       {/* Thesis */}
       <section className="px-4 pb-10">
         <div className="max-w-2xl mx-auto text-center">
           <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">The only decision that matters</p>
-          <div className="flex items-center gap-4">
-            <div className="flex-1 rounded-2xl bg-blue-600 text-white p-6 shadow-lg shadow-blue-200">
-              <p className="text-2xl font-black mb-1">Best Branch</p>
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <div className="w-full sm:flex-1 rounded-2xl bg-blue-600 text-white p-5 shadow-lg shadow-blue-200">
+              <p className="text-xl font-black mb-1">Best Branch</p>
               <p className="text-blue-200 text-sm">CSE · EE · ECE · MnC</p>
-              <p className="text-blue-100 text-xs mt-3 leading-relaxed">at any NIT you can get into</p>
+              <p className="text-blue-100 text-xs mt-2 leading-relaxed">at any college you can get into</p>
             </div>
-            <div className="shrink-0 text-2xl font-black text-slate-300">or</div>
-            <div className="flex-1 rounded-2xl bg-slate-800 text-white p-6 shadow-lg shadow-slate-200">
-              <p className="text-2xl font-black mb-1">Best NIT</p>
+            <div className="shrink-0 text-xl font-black text-slate-300">or</div>
+            <div className="w-full sm:flex-1 rounded-2xl bg-slate-800 text-white p-5 shadow-lg shadow-slate-200">
+              <p className="text-xl font-black mb-1">Best College</p>
               <p className="text-slate-400 text-sm">Any branch</p>
-              <p className="text-slate-300 text-xs mt-3 leading-relaxed">college brand opens doors branch cannot</p>
+              <p className="text-slate-300 text-xs mt-2 leading-relaxed">college brand opens doors branch cannot</p>
             </div>
           </div>
           <p className="mt-5 text-sm text-slate-500">Your results are organized around exactly this choice.</p>

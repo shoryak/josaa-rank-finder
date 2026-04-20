@@ -8,6 +8,7 @@ export interface Result {
   quota: string;
   opening_rank: number;
   closing_rank: number;
+  prev_closing_rank: number | null;
 }
 
 interface ResultsTableProps {
@@ -22,8 +23,10 @@ const CSE_KEYWORDS = ["computer science", "data science", "artificial intelligen
 const EE_KEYWORDS = ["electrical"];
 const MNC_KEYWORDS = ["mathematics", "mathematical"];
 
-// NIRF 2024 NIT rankings — keys match backend short_inst output exactly
-const NIRF_RANK: Record<string, number> = {
+// Prestige ranking — NITs by NIRF 2024, IIITs by reputation/cutoffs
+// Keys must match backend short_inst() output exactly
+const PRESTIGE_RANK: Record<string, number> = {
+  // NITs (NIRF 2024)
   "NIT Trichy": 1, "NIT, Rourkela": 2, "NIT Karnataka, Surathkal": 3,
   "NIT, Warangal": 4, "NIT Calicut": 5, "VNIT Nagpur": 6,
   "NIT, Kurukshetra": 7, "NIT, Silchar": 8, "MNNIT Allahabad": 9,
@@ -35,6 +38,25 @@ const NIRF_RANK: Record<string, number> = {
   "NIT, Mizoram": 25, "NIT Nagaland": 26, "NIT, Uttarakhand": 27,
   "NIT, Andhra Pradesh": 28, "NIT, Srinagar": 29, "NIT Puducherry": 30,
   "NIT Jalandhar": 31, "NIT Arunachal Pradesh": 32,
+  // IIITs (by reputation/JEE cutoffs)
+  "Indian Institute of Information Technology, Allahabad": 33,
+  "Atal Bihari Vajpayee Indian Institute of Information Technology & Management Gwalior": 34,
+  "Indian Institute of Information Technology, Design & Manufacturing, Kancheepuram": 35,
+  "Pt. Dwarka Prasad Mishra Indian Institute of Information Technology, Design & Manufacture Jabalpur": 36,
+  "Indian Institute of Information Technology Delhi": 37,
+  "Indian Institute of Information Technology (IIIT) Pune": 38,
+  "Indian Institute of Information Technology (IIIT) Nagpur": 39,
+  "Indian Institute of Information Technology Lucknow": 40,
+  "Indian Institute of Information Technology Bhopal": 41,
+  "Indian Institute of Information Technology Guwahati": 42,
+  "Indian Institute of Information Technology Surat": 43,
+  "Indian Institute of Information Technology Tiruchirappalli": 44,
+  "Indian Institute of Information Technology Bhagalpur": 45,
+  "International Institute of Information Technology, Bhubaneswar": 46,
+  "International Institute of Information Technology, Naya Raipur": 47,
+  // Top GFTIs
+  "Punjab Engineering College, Chandigarh": 48,
+  "Birla Institute of Technology, Mesra,  Ranchi": 49,
 };
 
 function matchesBranch(branch: string, keywords: string[]) {
@@ -47,11 +69,11 @@ function getHighlights(results: Result[]) {
   const ee = results.filter((r) => matchesBranch(r.branch, EE_KEYWORDS)).slice(0, 10);
   const mnc = results.filter((r) => matchesBranch(r.branch, MNC_KEYWORDS)).slice(0, 10);
 
-  // Top 5 NITs by NIRF — one best branch per NIT
+  // Best colleges by prestige rank (NITs + IIITs + top GFTIs) — one entry per institute
   const seen = new Set<string>();
-  const topNITs = results
-    .filter((r) => NIRF_RANK[r.institute] !== undefined)
-    .sort((a, b) => (NIRF_RANK[a.institute] ?? 99) - (NIRF_RANK[b.institute] ?? 99))
+  const bestColleges = results
+    .filter((r) => PRESTIGE_RANK[r.institute] !== undefined)
+    .sort((a, b) => (PRESTIGE_RANK[a.institute] ?? 999) - (PRESTIGE_RANK[b.institute] ?? 999))
     .filter((r) => {
       if (seen.has(r.institute)) return false;
       seen.add(r.institute);
@@ -59,7 +81,7 @@ function getHighlights(results: Result[]) {
     })
     .slice(0, 10);
 
-  return { cse, ee, mnc, topNITs };
+  return { cse, ee, mnc, bestColleges };
 }
 
 const CARD_STYLES: Record<string, { border: string; header: string; badge: string }> = {
@@ -87,27 +109,37 @@ function HighlightCard({ title, accent, items, userRank, showNirf }: {
       <div className={`px-5 py-3.5 ${s.header}`}>
         <p className="text-sm font-bold">{title}</p>
       </div>
+      {/* Column headers */}
+      <div className="flex items-center px-4 py-2 border-b border-slate-100 bg-slate-50">
+        <div className="flex-1 min-w-0" />
+        <div className="shrink-0 flex gap-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">
+          <span className="w-14 text-right">2025</span>
+          <span className="w-14 text-right">2024</span>
+        </div>
+      </div>
       <div className="divide-y divide-slate-100">
         {visible.map((r, i) => {
           const isBorderline = r.closing_rank - userRank <= BORDERLINE_MARGIN;
           return (
-            <div key={i} className="flex items-center justify-between gap-3 px-5 py-3.5">
-              <div className="min-w-0 flex items-center gap-3">
+            <div key={i} className="flex items-start gap-2 px-4 py-3">
+              <div className="min-w-0 flex-1 flex items-start gap-2">
                 {showNirf && (
                   <span className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-bold ${s.badge}`}>
-                    #{NIRF_RANK[r.institute]}
+                    #{PRESTIGE_RANK[r.institute]}
                   </span>
                 )}
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-900 truncate">{r.institute}</p>
-                  <p className="text-xs text-slate-500 truncate mt-0.5">{r.branch}</p>
+                  <p className="text-sm font-semibold text-slate-900 leading-snug">{r.institute}</p>
+                  <p className="text-xs text-slate-500 mt-0.5 leading-snug">{r.branch}</p>
                 </div>
               </div>
-              <div className="shrink-0 text-right">
-                <p className={`text-base font-bold tabular-nums ${isBorderline ? "text-amber-600" : "text-slate-800"}`}>
+              <div className="shrink-0 flex gap-3">
+                <p className={`w-14 text-right tabular-nums font-bold ${isBorderline ? "text-amber-600" : "text-slate-800"}`}>
                   {r.closing_rank.toLocaleString()}
                 </p>
-                {isBorderline && <p className="text-xs text-amber-500">borderline</p>}
+                <p className="w-14 text-right tabular-nums text-slate-400">
+                  {r.prev_closing_rank != null ? r.prev_closing_rank.toLocaleString() : "—"}
+                </p>
               </div>
             </div>
           );
@@ -122,6 +154,18 @@ function HighlightCard({ title, accent, items, userRank, showNirf }: {
         </button>
       )}
     </div>
+  );
+}
+
+function TrendBadge({ current, prev }: { current: number; prev: number | null }) {
+  if (!prev) return null;
+  const delta = current - prev; // positive = rank went up (harder), negative = easier
+  if (Math.abs(delta) < 100) return null; // too small to show
+  const harder = delta > 0;
+  return (
+    <span className={`text-xs tabular-nums font-medium ${harder ? "text-red-500" : "text-green-600"}`}>
+      {harder ? "▲" : "▼"}{Math.abs(delta).toLocaleString()}
+    </span>
   );
 }
 
@@ -140,19 +184,45 @@ function QuotaBadge({ quota }: { quota: string }) {
   );
 }
 
+type InstFilter = "all" | "nit" | "iiit" | "gfti";
+
+function classifyInstitute(institute: string): "nit" | "iiit" | "gfti" {
+  const l = institute.toLowerCase();
+  // Match shortened NIT names produced by backend short_inst()
+  if (
+    l.startsWith("nit ") || l.startsWith("nit,") ||
+    l.includes("mnnit") || l.includes("svnit") ||
+    l.includes("vnit") || l.includes("manit") ||
+    l.includes("mnit") || l.includes("iiest")
+  ) return "nit";
+  // IIITs — must say "indian/international institute of information technology"
+  // or contain the IIIT abbreviation. Avoids matching NIELITs.
+  if (
+    l.includes("indian institute of information technology") ||
+    l.includes("international institute of information technology") ||
+    l.includes("iiit") ||
+    l.startsWith("atal bihari") ||
+    l.startsWith("pt. dwarka")
+  ) return "iiit";
+  return "gfti";
+}
+
 export default function ResultsTable({
   results,
   total,
   userRank,
 }: ResultsTableProps) {
   const [search, setSearch] = useState("");
-  const [tableOpen, setTableOpen] = useState(false);
+  const [tableOpen, setTableOpen] = useState(true);
+  const [instFilter, setInstFilter] = useState<InstFilter>("all");
 
-  const filtered = results.filter(
-    (r) =>
+  const filtered = results.filter((r) => {
+    const matchesSearch =
       r.institute.toLowerCase().includes(search.toLowerCase()) ||
-      r.branch.toLowerCase().includes(search.toLowerCase())
-  );
+      r.branch.toLowerCase().includes(search.toLowerCase());
+    const matchesType = instFilter === "all" || classifyInstitute(r.institute) === instFilter;
+    return matchesSearch && matchesType;
+  });
 
   if (total === 0) {
     return (
@@ -173,45 +243,74 @@ export default function ResultsTable({
     (r) => r.closing_rank - userRank <= BORDERLINE_MARGIN && r.closing_rank >= userRank
   ).length;
 
-  const { cse, ee, mnc, topNITs } = getHighlights(results);
+  const { cse, ee, mnc, bestColleges } = getHighlights(results);
 
   return (
     <div className="space-y-5">
       {/* Highlights */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <HighlightCard title="Top CSE Options" accent="blue" items={cse} userRank={userRank} />
         <HighlightCard title="Top EE Options" accent="green" items={ee} userRank={userRank} />
         <HighlightCard title="Top MnC Options" accent="purple" items={mnc} userRank={userRank} />
-        <HighlightCard title="Top NITs by NIRF" accent="orange" items={topNITs} userRank={userRank} showNirf />
+        <HighlightCard title="Best Colleges" accent="orange" items={bestColleges} userRank={userRank} showNirf />
       </div>
 
-      {/* Collapsible full list */}
+      {/* All options card */}
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <button
-          onClick={() => setTableOpen((o) => !o)}
-          className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-slate-50 transition"
-        >
-          <div className="flex items-center gap-4">
-            <span className="text-sm font-semibold text-slate-800">View all {total} options</span>
-            {borderlineCount > 0 && (
-              <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
-                {borderlineCount} borderline
-              </span>
-            )}
-          </div>
-          <svg
-            className={`h-5 w-5 text-slate-400 transition-transform ${tableOpen ? "rotate-180" : ""}`}
-            xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+        {/* Card header */}
+        <div className="px-5 py-4 bg-slate-50 border-b border-slate-200">
+          <button
+            onClick={() => setTableOpen((o) => !o)}
+            className="w-full flex items-center justify-between mb-3 hover:opacity-75 transition text-left"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" />
-          </svg>
-        </button>
+            <div className="flex items-center gap-3">
+              <p className="text-sm font-bold text-slate-800">
+                All Options
+                <span className="ml-2 text-slate-400 font-normal">{filtered.length} results</span>
+              </p>
+              {borderlineCount > 0 && (
+                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                  {borderlineCount} borderline
+                </span>
+              )}
+            </div>
+            <svg className={`h-5 w-5 text-slate-400 transition-transform ${tableOpen ? "rotate-180" : ""}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" />
+            </svg>
+          </button>
+          {/* Filter pills */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {(["all", "nit", "iiit", "gfti"] as InstFilter[]).map((f) => {
+              const counts: Record<InstFilter, number> = {
+                all: results.length,
+                nit: results.filter((r) => classifyInstitute(r.institute) === "nit").length,
+                iiit: results.filter((r) => classifyInstitute(r.institute) === "iiit").length,
+                gfti: results.filter((r) => classifyInstitute(r.institute) === "gfti").length,
+              };
+              const labels: Record<InstFilter, string> = { all: "All", nit: "NITs", iiit: "IIITs", gfti: "GFTIs" };
+              const active = instFilter === f;
+              return (
+                <button
+                  key={f}
+                  onClick={() => setInstFilter(f)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition border ${
+                    active
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white text-slate-600 border-slate-300 hover:border-blue-400 hover:text-blue-600"
+                  }`}
+                >
+                  {labels[f]} <span className={active ? "text-blue-200" : "text-slate-400"}>{counts[f]}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         {tableOpen && (
           <>
             {/* Search */}
-            <div className="px-4 pb-3 border-t border-slate-100">
-              <div className="relative mt-3">
+            <div className="px-4 py-3 border-b border-slate-100">
+              <div className="relative">
                 <svg className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35m0 0A7.5 7.5 0 1 0 6.5 6.5a7.5 7.5 0 0 0 10.65 10.65Z" />
                 </svg>
@@ -236,8 +335,9 @@ export default function ResultsTable({
                 <th className="py-3.5 px-3 text-left">Institute</th>
                 <th className="py-3.5 px-3 text-left">Branch</th>
                 <th className="py-3.5 px-3 text-left">Quota</th>
-                <th className="py-3.5 px-3 text-right">Opening Rank</th>
-                <th className="py-3.5 pl-3 pr-5 text-right">Closing Rank</th>
+                <th className="py-3.5 px-3 text-right">2025 CR</th>
+                <th className="py-3.5 px-3 text-right">2024 CR</th>
+                <th className="py-3.5 pl-3 pr-5 text-right">Δ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -245,6 +345,7 @@ export default function ResultsTable({
                 const isBorderline =
                   row.closing_rank - userRank <= BORDERLINE_MARGIN &&
                   row.closing_rank >= userRank;
+                const delta = row.prev_closing_rank != null ? row.closing_rank - row.prev_closing_rank : null;
                 return (
                   <tr
                     key={idx}
@@ -254,37 +355,29 @@ export default function ResultsTable({
                         : "bg-white hover:bg-slate-50"
                     }`}
                   >
-                    <td className="py-3 pl-5 pr-3 text-slate-400 text-xs">
-                      {idx + 1}
-                    </td>
-                    <td className="py-3 px-3 font-medium text-slate-900">
-                      {row.institute}
-                    </td>
+                    <td className="py-3 pl-5 pr-3 text-slate-400 text-xs">{idx + 1}</td>
+                    <td className="py-3 px-3 font-medium text-slate-900">{row.institute}</td>
                     <td className="py-3 px-3 text-slate-700">{row.branch}</td>
-                    <td className="py-3 px-3">
-                      <QuotaBadge quota={row.quota} />
-                    </td>
-                    <td className="py-3 px-3 text-right tabular-nums text-slate-600">
-                      {row.opening_rank > 0
-                        ? row.opening_rank.toLocaleString()
-                        : "—"}
-                    </td>
-                    <td
-                      className={`py-3 pl-3 pr-5 text-right tabular-nums font-semibold ${
-                        isBorderline ? "text-amber-700" : "text-slate-800"
-                      }`}
-                    >
+                    <td className="py-3 px-3"><QuotaBadge quota={row.quota} /></td>
+                    <td className={`py-3 px-3 text-right tabular-nums font-semibold ${isBorderline ? "text-amber-700" : "text-slate-800"}`}>
                       {row.closing_rank.toLocaleString()}
+                    </td>
+                    <td className="py-3 px-3 text-right tabular-nums text-slate-500">
+                      {row.prev_closing_rank != null ? row.prev_closing_rank.toLocaleString() : "—"}
+                    </td>
+                    <td className="py-3 pl-3 pr-5 text-right tabular-nums text-xs font-semibold">
+                      {delta != null && Math.abs(delta) >= 100 ? (
+                        <span className={delta > 0 ? "text-red-500" : "text-green-600"}>
+                          {delta > 0 ? "▲" : "▼"}{Math.abs(delta).toLocaleString()}
+                        </span>
+                      ) : "—"}
                     </td>
                   </tr>
                 );
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td
-                    colSpan={6}
-                    className="py-10 text-center text-sm text-slate-500"
-                  >
+                  <td colSpan={7} className="py-10 text-center text-sm text-slate-500">
                     No results match your search.
                   </td>
                 </tr>
@@ -294,7 +387,16 @@ export default function ResultsTable({
         </div>
 
         {/* Mobile cards */}
-        <div className="md:hidden divide-y divide-slate-100">
+        <div className="md:hidden">
+          {/* Column headers */}
+          <div className="flex items-center px-4 py-2 bg-slate-50 border-b border-slate-100">
+            <div className="flex-1 min-w-0" />
+            <div className="shrink-0 flex gap-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">
+              <span className="w-14 text-right">2025</span>
+              <span className="w-14 text-right">2024</span>
+            </div>
+          </div>
+          <div className="divide-y divide-slate-100">
           {filtered.map((row, idx) => {
             const isBorderline =
               row.closing_rank - userRank <= BORDERLINE_MARGIN &&
@@ -302,44 +404,29 @@ export default function ResultsTable({
             return (
               <div
                 key={idx}
-                className={`p-4 ${
-                  isBorderline ? "bg-amber-50" : "bg-white"
-                }`}
+                className={`flex items-start gap-2 px-4 py-3 ${isBorderline ? "bg-amber-50" : "bg-white"}`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-slate-900 text-sm truncate">
-                      {row.institute}
-                    </p>
-                    <p className="text-slate-600 text-xs mt-0.5 leading-snug">
-                      {row.branch}
-                    </p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-slate-900 text-sm leading-snug">{row.institute}</p>
+                      <p className="text-slate-500 text-xs mt-0.5 leading-snug">{row.branch}</p>
+                    </div>
+                    <QuotaBadge quota={row.quota} />
                   </div>
-                  <QuotaBadge quota={row.quota} />
                 </div>
-                <div className="mt-2 flex items-center gap-4 text-xs text-slate-500">
-                  <span>
-                    Opening:{" "}
-                    <span className="font-medium text-slate-700">
-                      {row.opening_rank > 0
-                        ? row.opening_rank.toLocaleString()
-                        : "—"}
-                    </span>
-                  </span>
-                  <span>
-                    Closing:{" "}
-                    <span
-                      className={`font-bold ${
-                        isBorderline ? "text-amber-700" : "text-slate-900"
-                      }`}
-                    >
-                      {row.closing_rank.toLocaleString()}
-                    </span>
-                  </span>
+                <div className="shrink-0 flex gap-3">
+                  <p className={`w-14 text-right tabular-nums font-bold ${isBorderline ? "text-amber-700" : "text-slate-800"}`}>
+                    {row.closing_rank.toLocaleString()}
+                  </p>
+                  <p className="w-14 text-right tabular-nums text-slate-400">
+                    {row.prev_closing_rank != null ? row.prev_closing_rank.toLocaleString() : "—"}
+                  </p>
                 </div>
               </div>
             );
           })}
+          </div>
           {filtered.length === 0 && (
             <div className="py-10 text-center text-sm text-slate-500">
               No results match your search.

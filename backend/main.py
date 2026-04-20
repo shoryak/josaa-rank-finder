@@ -176,21 +176,13 @@ def load_data() -> pd.DataFrame:
     if _df is not None:
         return _df
 
-    rows = []
-    with open(DATA_PATH, encoding="utf-8") as f:
-        for line in f:
-            parts = line.strip().split("\t")
-            if len(parts) == 7:
-                rows.append(parts)
+    df = pd.read_csv(DATA_PATH, sep="\t", dtype=str)
+    df.columns = [c.strip() for c in df.columns]
 
-    # First row is header
-    if rows and rows[0][0].lower() == "institute":
-        rows = rows[1:]
+    if "Year" not in df.columns:
+        df["Year"] = "2025"
 
-    df = pd.DataFrame(
-        rows,
-        columns=["Institute", "Branch", "Quota", "SeatType", "Gender", "OpeningRank", "ClosingRank"],
-    )
+    df["Year"] = pd.to_numeric(df["Year"], errors="coerce").fillna(2025).astype(int)
 
     df["ClosingRank"] = pd.to_numeric(
         df["ClosingRank"].str.replace("P", "", regex=False).str.strip(), errors="coerce"
@@ -245,7 +237,24 @@ def get_options(
     # Rank filter — student is eligible where ClosingRank >= their rank
     mask_rank = df["ClosingRank"] >= rank
 
-    eligible = df[mask_seat & mask_gender & mask_rank].copy()
+    # Use only latest year's data for current results
+    latest_year = int(df["Year"].max())
+    prev_year = latest_year - 1
+    mask_year = df["Year"] == latest_year
+
+    eligible = df[mask_seat & mask_gender & mask_rank & mask_year].copy()
+
+    # Build previous year lookup — shorten names to match what we show in results
+    prev_df = df[
+        (df["Year"] == prev_year) &
+        (df["SeatType"].str.upper() == category.upper()) &
+        df["Gender"].str.startswith(gender_filter) &
+        df["Quota"].str.upper().isin(["AI", "HS", "OS"])
+    ][["Institute", "Branch", "Quota", "ClosingRank"]].copy()
+    prev_df["Institute"] = prev_df["Institute"].apply(short_inst)
+    prev_df["Branch"] = prev_df["Branch"].apply(short_branch)
+    prev_df = prev_df.rename(columns={"ClosingRank": "PrevClosingRank"})
+    prev_lookup = prev_df.set_index(["Institute", "Branch", "Quota"])["PrevClosingRank"].to_dict()
 
     if eligible.empty:
         return {"results": [], "total": 0}
@@ -259,10 +268,14 @@ def get_options(
 
     eligible["_is_hs"] = eligible["Institute"].apply(is_home_state)
 
-    # Keep HS quota rows only for home-state institutes; OS quota for all others
+    # AI quota = IIITs/GFTIs (all-India, always include)
+    # HS quota = home-state NIT rows only
+    # OS quota = non-home-state NIT rows only
+    quota_upper = eligible["Quota"].str.upper()
     eligible = eligible[
-        (eligible["_is_hs"] & (eligible["Quota"].str.upper() == "HS")) |
-        (~eligible["_is_hs"] & (eligible["Quota"].str.upper() == "OS"))
+        (quota_upper == "AI") |
+        (eligible["_is_hs"] & (quota_upper == "HS")) |
+        (~eligible["_is_hs"] & (quota_upper == "OS"))
     ]
 
     # Remove B.Arch — uses AAT ranks, not JEE
@@ -277,6 +290,7 @@ def get_options(
 
     results = []
     for _, row in eligible.iterrows():
+        prev_cr = prev_lookup.get((row["Institute"], row["Branch"], row["Quota"]))
         results.append(
             {
                 "institute": row["Institute"],
@@ -284,6 +298,7 @@ def get_options(
                 "quota": row["Quota"],
                 "opening_rank": int(row["OpeningRank"]),
                 "closing_rank": int(row["ClosingRank"]),
+                "prev_closing_rank": int(prev_cr) if pd.notna(prev_cr) else None,
             }
         )
 
