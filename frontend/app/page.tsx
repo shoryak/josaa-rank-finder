@@ -177,12 +177,15 @@ export default function Home() {
             </div>
           )}
 
-          {fetchState === "success" && (
+          {fetchState === "success" && submittedValues && (
             <div className="animate-fade-in">
               <ResultsTable
                 results={results}
                 total={total}
                 userRank={submittedRank ?? 0}
+                category={submittedValues.category}
+                gender={submittedValues.gender}
+                state={submittedValues.state}
               />
             </div>
           )}

@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 export interface Result {
   institute: string;
@@ -15,6 +17,9 @@ interface ResultsTableProps {
   results: Result[];
   total: number;
   userRank: number;
+  category?: string;
+  gender?: string;
+  state?: string;
 }
 
 const BORDERLINE_MARGIN = 2000;
@@ -89,12 +94,13 @@ const CARD_STYLES: Record<string, { border: string; header: string; badge: strin
 
 const DEFAULT_VISIBLE = 3;
 
-function HighlightCard({ title, accent, items, userRank, showNirf }: {
+function HighlightCard({ title, accent, items, userRank, showNirf, onCollegeClick }: {
   title: string;
   accent: keyof typeof CARD_STYLES;
   items: Result[];
   userRank: number;
   showNirf?: boolean;
+  onCollegeClick: (college: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   if (items.length === 0) return null;
@@ -125,7 +131,12 @@ function HighlightCard({ title, accent, items, userRank, showNirf }: {
                   </span>
                 )}
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-900 leading-snug">{r.institute}</p>
+                  <button
+                    onClick={() => onCollegeClick(r.institute)}
+                    className="text-sm font-semibold text-slate-900 leading-snug hover:text-blue-600 hover:underline text-left transition-colors"
+                  >
+                    {r.institute}
+                  </button>
                   <p className="text-xs text-slate-500 mt-0.5 leading-snug">{r.branch}</p>
                 </div>
               </div>
@@ -180,6 +191,130 @@ function QuotaBadge({ quota }: { quota: string }) {
   );
 }
 
+function CollegeDrawer({ college, entries, userRank, category, gender, state, onClose }: {
+  college: string;
+  entries: Result[];
+  userRank: number;
+  category: string;
+  gender: string;
+  state: string;
+  onClose: () => void;
+}) {
+  const [outOfReach, setOutOfReach] = useState<Result[]>([]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  useEffect(() => {
+    const params = new URLSearchParams({ institute: college, category, gender, state });
+    fetch(`${API_URL}/api/college?${params}`)
+      .then((r) => r.ok ? r.json() : Promise.reject(new Error(`${r.status} ${r.url}`)))
+      .then((d: { results: Result[] }) => {
+        const inRangeSet = new Set(entries.map((e) => e.branch + e.quota));
+        const oor = (d.results ?? []).filter((r) => !inRangeSet.has(r.branch + r.quota));
+        setOutOfReach(oor);
+      })
+      .catch((err) => console.error("college fetch failed:", err));
+  }, [college, category, gender, state]);
+
+  const sorted = [...entries].sort((a, b) => a.closing_rank - b.closing_rank);
+  const nirfRank = PRESTIGE_RANK[college];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div
+        className="relative w-full sm:max-w-lg max-h-[85vh] flex flex-col rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-5 pt-5 pb-4 border-b border-slate-100 flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            {nirfRank && (
+              <span className="rounded-md bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700 mb-1 inline-block">
+                NIRF #{nirfRank}
+              </span>
+            )}
+            <h2 className="text-base font-bold text-slate-900 leading-snug">{college}</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{sorted.length} branch{sorted.length !== 1 ? "es" : ""} available for your rank</p>
+          </div>
+          <button onClick={onClose} className="shrink-0 rounded-lg p-1.5 hover:bg-slate-100 transition text-slate-400">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Column headers */}
+        <div className="flex items-center px-5 py-2 bg-slate-50 border-b border-slate-100">
+          <div className="flex-1 min-w-0 text-xs font-semibold text-slate-400 uppercase tracking-wide">Branch</div>
+          <div className="shrink-0 flex gap-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">
+            <span className="w-10 text-right">Quota</span>
+            <span className="w-14 text-right">2025</span>
+            <span className="w-14 text-right">2024</span>
+          </div>
+        </div>
+
+        {/* Rows */}
+        <div className="overflow-y-auto flex-1">
+          {outOfReach.length > 0 && (
+            <>
+              <div className="flex items-center gap-2 px-5 py-2 bg-slate-100 border-b border-slate-200">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Out of reach last year</span>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {outOfReach.map((r, i) => (
+                  <div key={i} className="flex items-center gap-3 px-5 py-3 opacity-50">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-600 leading-snug">{r.branch}</p>
+                    </div>
+                    <div className="shrink-0 flex items-center gap-3">
+                      <div className="w-10 flex justify-end"><QuotaBadge quota={r.quota} /></div>
+                      <p className="w-14 text-right tabular-nums font-semibold text-sm text-slate-500">
+                        {r.closing_rank.toLocaleString()}
+                      </p>
+                      <p className="w-14 text-right tabular-nums text-sm text-slate-400">
+                        {r.prev_closing_rank != null ? r.prev_closing_rank.toLocaleString() : "—"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 px-5 py-2 bg-slate-100 border-t border-b border-slate-200">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">In range for your rank</span>
+              </div>
+            </>
+          )}
+          <div className="divide-y divide-slate-100">
+            {sorted.map((r, i) => {
+              const isBorderline = r.closing_rank - userRank <= BORDERLINE_MARGIN;
+              return (
+                <div key={i} className={`flex items-center gap-3 px-5 py-3 ${isBorderline ? "bg-amber-50" : ""}`}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-800 leading-snug">{r.branch}</p>
+                  </div>
+                  <div className="shrink-0 flex items-center gap-3">
+                    <div className="w-10 flex justify-end"><QuotaBadge quota={r.quota} /></div>
+                    <p className={`w-14 text-right tabular-nums font-bold text-sm ${isBorderline ? "text-amber-700" : "text-slate-800"}`}>
+                      {r.closing_rank.toLocaleString()}
+                    </p>
+                    <p className="w-14 text-right tabular-nums text-sm text-slate-400">
+                      {r.prev_closing_rank != null ? r.prev_closing_rank.toLocaleString() : "—"}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type InstFilter = "all" | "nit" | "iiit" | "gfti";
 
 function classifyInstitute(institute: string): "nit" | "iiit" | "gfti" {
@@ -207,10 +342,15 @@ export default function ResultsTable({
   results,
   total,
   userRank,
+  category = "",
+  gender = "",
+  state = "",
 }: ResultsTableProps) {
   const [search, setSearch] = useState("");
   const [tableOpen, setTableOpen] = useState(true);
   const [instFilter, setInstFilter] = useState<InstFilter>("all");
+  const [selectedCollege, setSelectedCollege] = useState<string | null>(null);
+  const collegeEntries = selectedCollege ? results.filter((r) => r.institute === selectedCollege) : [];
 
   const filtered = results.filter((r) => {
     const matchesSearch =
@@ -245,10 +385,10 @@ export default function ResultsTable({
     <div className="space-y-5">
       {/* Highlights */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <HighlightCard title="Top CSE Options" accent="blue" items={cse} userRank={userRank} />
-        <HighlightCard title="Top EE Options" accent="green" items={ee} userRank={userRank} />
-        <HighlightCard title="Top MnC Options" accent="purple" items={mnc} userRank={userRank} />
-        <HighlightCard title="Best Colleges" accent="orange" items={bestColleges} userRank={userRank} showNirf />
+        <HighlightCard title="Top CSE Options" accent="blue" items={cse} userRank={userRank} onCollegeClick={setSelectedCollege} />
+        <HighlightCard title="Top EE Options" accent="green" items={ee} userRank={userRank} onCollegeClick={setSelectedCollege} />
+        <HighlightCard title="Top MnC Options" accent="purple" items={mnc} userRank={userRank} onCollegeClick={setSelectedCollege} />
+        <HighlightCard title="Best Colleges" accent="orange" items={bestColleges} userRank={userRank} showNirf onCollegeClick={setSelectedCollege} />
       </div>
 
       {/* All options card */}
@@ -352,7 +492,11 @@ export default function ResultsTable({
                     }`}
                   >
                     <td className="py-3 pl-5 pr-3 text-slate-400 text-xs">{idx + 1}</td>
-                    <td className="py-3 px-3 font-medium text-slate-900">{row.institute}</td>
+                    <td className="py-3 px-3 font-medium text-slate-900">
+                      <button onClick={() => setSelectedCollege(row.institute)} className="hover:text-blue-600 hover:underline text-left transition-colors">
+                        {row.institute}
+                      </button>
+                    </td>
                     <td className="py-3 px-3 text-slate-700">{row.branch}</td>
                     <td className="py-3 px-3"><QuotaBadge quota={row.quota} /></td>
                     <td className={`py-3 px-3 text-right tabular-nums font-semibold ${isBorderline ? "text-amber-700" : "text-slate-800"}`}>
@@ -405,7 +549,9 @@ export default function ResultsTable({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-slate-900 text-sm leading-snug">{row.institute}</p>
+                      <button onClick={() => setSelectedCollege(row.institute)} className="font-semibold text-slate-900 text-sm leading-snug hover:text-blue-600 hover:underline text-left transition-colors">
+                        {row.institute}
+                      </button>
                       <p className="text-slate-500 text-xs mt-0.5 leading-snug">{row.branch}</p>
                     </div>
                     <QuotaBadge quota={row.quota} />
@@ -439,6 +585,18 @@ export default function ResultsTable({
           </>
         )}
       </div>
+
+      {selectedCollege && (
+        <CollegeDrawer
+          college={selectedCollege}
+          entries={collegeEntries}
+          userRank={userRank}
+          category={category}
+          gender={gender}
+          state={state}
+          onClose={() => setSelectedCollege(null)}
+        />
+      )}
     </div>
   );
 }

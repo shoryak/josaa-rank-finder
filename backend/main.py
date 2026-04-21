@@ -310,6 +310,82 @@ def get_options(
     return {"results": results, "total": len(results)}
 
 
+@app.get("/api/college")
+def get_college(
+    institute: str = Query(..., description="Short institute name (as returned by /api/options)"),
+    category: str = Query(...),
+    gender: str = Query(...),
+    state: str = Query(""),
+):
+    df = load_data()
+
+    if gender == "Gender-Neutral":
+        gender_filter = "Gender-Neutral"
+    elif gender == "Female-only":
+        gender_filter = "Female-only"
+    else:
+        raise HTTPException(status_code=400, detail="Invalid gender")
+
+    latest_year = int(df["Year"].max())
+    prev_year = latest_year - 1
+
+    mask_base = (
+        (df["Year"] == latest_year) &
+        (df["SeatType"].str.upper() == category.upper()) &
+        df["Gender"].str.startswith(gender_filter)
+    )
+
+    hs_keywords = HOME_STATE_MAP.get(state, [])
+
+    def is_home_state(inst_name: str) -> bool:
+        return any(kw in inst_name.lower() for kw in hs_keywords)
+
+    eligible = df[mask_base].copy()
+    eligible["_short"] = eligible["Institute"].apply(short_inst)
+    eligible = eligible[eligible["_short"] == institute]
+
+    if eligible.empty:
+        return {"results": []}
+
+    eligible["_is_hs"] = eligible["Institute"].apply(is_home_state)
+    quota_upper = eligible["Quota"].str.upper()
+    eligible = eligible[
+        (quota_upper == "AI") |
+        (eligible["_is_hs"] & (quota_upper == "HS")) |
+        (~eligible["_is_hs"] & (quota_upper == "OS"))
+    ]
+    eligible = eligible[~eligible["Branch"].str.lower().str.contains("architecture", na=False)]
+
+    # Previous year lookup
+    prev_df = df[
+        (df["Year"] == prev_year) &
+        (df["SeatType"].str.upper() == category.upper()) &
+        df["Gender"].str.startswith(gender_filter)
+    ][["Institute", "Branch", "Quota", "ClosingRank"]].copy()
+    prev_df["Institute"] = prev_df["Institute"].apply(short_inst)
+    prev_df["Branch"] = prev_df["Branch"].apply(short_branch)
+    prev_df = prev_df.rename(columns={"ClosingRank": "PrevClosingRank"})
+    prev_lookup = prev_df.set_index(["Institute", "Branch", "Quota"])["PrevClosingRank"].to_dict()
+
+    eligible["Branch"] = eligible["Branch"].apply(short_branch)
+    eligible["Institute"] = eligible["Institute"].apply(short_inst)
+    eligible = eligible.sort_values("ClosingRank")
+
+    results = []
+    for _, row in eligible.iterrows():
+        prev_cr = prev_lookup.get((row["Institute"], row["Branch"], row["Quota"]))
+        results.append({
+            "institute": row["Institute"],
+            "branch": row["Branch"],
+            "quota": row["Quota"],
+            "opening_rank": int(row["OpeningRank"]),
+            "closing_rank": int(row["ClosingRank"]),
+            "prev_closing_rank": int(prev_cr) if pd.notna(prev_cr) else None,
+        })
+
+    return {"results": results}
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "rows_loaded": len(load_data())}
