@@ -10,6 +10,9 @@ WORKDIR /app
 COPY . .
 
 # Build Next.js static export
+# NEXT_PUBLIC_* vars are baked in at build time, not runtime
+ARG NEXT_PUBLIC_POSTHOG_KEY
+ENV NEXT_PUBLIC_POSTHOG_KEY=$NEXT_PUBLIC_POSTHOG_KEY
 RUN cd frontend && npm install && npm run build
 
 # Install Python deps
