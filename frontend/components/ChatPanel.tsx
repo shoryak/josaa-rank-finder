@@ -36,7 +36,7 @@ const PICKS = [
   { label: "Top MnC", kw: MNC_KW, color: "text-purple-700", bg: "bg-purple-50", border: "border-purple-100" },
 ];
 
-export default function ChatPanel({ results: _results }: ChatPanelProps) { // eslint-disable-line @typescript-eslint/no-unused-vars
+export default function ChatPanel({ results: _results }: ChatPanelProps) {
   const [emailInput, setEmailInput] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [emailError, setEmailError] = useState("");
@@ -62,8 +62,8 @@ export default function ChatPanel({ results: _results }: ChatPanelProps) { // es
       <div className="rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4">
         {submitted ? (
           <div className="text-center py-1">
-            <p className="text-sm font-semibold text-blue-800">You're on the list!</p>
-            <p className="text-xs text-blue-600 mt-0.5">We'll reach out when JOSAA Counsellor launches.</p>
+            <p className="text-sm font-semibold text-blue-800">You&apos;re on the list!</p>
+            <p className="text-xs text-blue-600 mt-0.5">We&apos;ll reach out when JOSAA Counsellor launches.</p>
           </div>
         ) : (
           <>
