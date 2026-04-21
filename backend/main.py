@@ -3,11 +3,15 @@ JOSAA Rank Finder — FastAPI backend
 """
 
 import os
+import json
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 import httpx
+from openai import AsyncOpenAI
 import pandas as pd
 from typing import Optional
 
@@ -309,6 +313,104 @@ def get_options(
 @app.get("/health")
 def health():
     return {"status": "ok", "rows_loaded": len(load_data())}
+
+
+def _build_josaa_system(ctx: dict) -> str:
+    rank = ctx.get("rank", "unknown")
+    category = ctx.get("category", "OPEN")
+    gender = ctx.get("gender", "Gender-Neutral")
+    state = ctx.get("state") or "not specified"
+    total = ctx.get("totalOptions", 0)
+    borderline = ctx.get("borderlineCount", 0)
+    best_cse = ctx.get("bestCse") or "none in range"
+    best_ee = ctx.get("bestEe") or "none in range"
+    best_mnc = ctx.get("bestMnc") or "none in range"
+    best_college = ctx.get("bestCollege") or "none in range"
+
+    return f"""You are a JOSAA counseling expert helping JEE students and their parents choose between colleges and branches.
+
+STUDENT'S SITUATION:
+- Rank {rank} | {category} category | {gender} | Home state: {state}
+- {total} eligible options found
+- Borderline options (closing rank within 2000 of their rank): {borderline}
+- Best CSE/IT option: {best_cse}
+- Best EE/ECE option: {best_ee}
+- Best MnC (Maths & Computing) option: {best_mnc}
+- Best college by NIRF ranking: {best_college}
+
+JOSAA PROCESS:
+- 6 rounds. After each round you choose: Freeze (accept, done), Float (keep current seat but auto-upgrade if something better opens), Slide (keep current college, upgrade branch only). Round 6 is final — must freeze or lose seat.
+- Withdraw = give up seat entirely. Only do this if you plan to take a drop year.
+
+QUOTAS:
+- HS (Home State): reserved seats at your home state's NIT, fewer seats but accessible to locals.
+- OS (Other State): for students from other states at NITs, more seats, slightly higher cutoffs.
+- AI (All India): IIITs and GFTIs, no state restriction, everyone competes together.
+
+NIT TIERS (NIRF 2024):
+- Tier 1: NIT Trichy, NIT Rourkela, NIT Karnataka Surathkal, NIT Warangal, NIT Calicut
+- Tier 2: VNIT Nagpur, NIT Kurukshetra, MNNIT Allahabad, NIT Silchar, NIT Durgapur, MNIT Jaipur, SVNIT Surat, MANIT Bhopal
+- Tier 3: NIT Hamirpur, IIEST Shibpur, NIT Patna, NIT Jalandhar, and rest
+
+BRANCH REALITY FOR JOBS:
+- CSE = best for software, highest demand, most placements
+- MnC (Mathematics and Computing) = underrated, nearly equal to CSE outcomes, treat same as CSE
+- ECE (Electronics & Communication) = excellent — most ECE grads get software jobs, also great for VLSI/semiconductor careers
+- EE (Electrical) = strong at tier-1 NITs for core/PSU jobs, decent software placements at top NITs
+- Mechanical, Civil = good at tier-1 NITs for core jobs; weak placement for software roles
+
+DECISION FRAMEWORK:
+- Same tier: CSE > MnC > ECE > EE > Mech/Civil
+- 1 tier apart: CSE at lower NIT vs ECE at upper NIT → lean CSE for software careers
+- 2+ tiers apart: take the better college in any branch — brand and campus culture matter more
+- IIITs: IIIT Allahabad and Gwalior are top-tier for CS, better than most NITs. Other IIITs vary — roughly equal to tier-2/3 NITs.
+- MnC at NIT Warangal/Trichy > CSE at a tier-3 NIT
+
+RESPONSE RULES:
+- Lead with a clear recommendation. Explain after, not before.
+- Use plain language — explain acronyms the first time (e.g. "ECE — Electronics and Communication Engineering").
+- Under 120 words unless the question genuinely needs more.
+- Never invent specific salary figures or placement percentages.
+- Never say "it depends" without immediately saying what it depends on and what you'd recommend."""
+
+
+@app.post("/api/chat")
+async def chat_endpoint(request: Request):
+    api_key = os.environ.get("XAI_API_KEY")
+    if not api_key:
+        return Response(
+            content=json.dumps({"error": "AI advisor not configured"}),
+            status_code=503,
+            media_type="application/json",
+        )
+
+    body = await request.json()
+    messages = body.get("messages", [])[-10:]
+    context = body.get("context", {})
+
+    client = AsyncOpenAI(api_key=api_key, base_url="https://api.x.ai/v1")
+    system_content = _build_josaa_system(context)
+
+    async def generate():
+        try:
+            stream = await client.chat.completions.create(
+                model="grok-3-mini",
+                messages=[{"role": "system", "content": system_content}] + messages,
+                max_tokens=350,
+                stream=True,
+            )
+            async for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield f"data: {json.dumps({'content': chunk.choices[0].delta.content})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'content': 'Sorry, something went wrong. Please try again.'})}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 POSTHOG_HOST = "https://us.i.posthog.com"

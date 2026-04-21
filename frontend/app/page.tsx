@@ -4,9 +4,34 @@ import { useState } from "react";
 import posthog from "posthog-js";
 import SearchForm, { FormValues } from "@/components/SearchForm";
 import ResultsTable, { Result } from "@/components/ResultsTable";
+import ChatPanel from "@/components/ChatPanel";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+
+function FaqItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-slate-50 transition"
+      >
+        <span className="text-sm font-semibold text-slate-800 pr-4">{q}</span>
+        <svg
+          className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
+          xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="px-5 pb-4 text-sm text-slate-600 leading-relaxed border-t border-slate-100 pt-3">
+          {a}
+        </div>
+      )}
+    </div>
+  );
+}
 
 type FetchState = "idle" | "loading" | "success" | "error";
 
@@ -16,11 +41,13 @@ export default function Home() {
   const [total, setTotal] = useState(0);
   const [errorMsg, setErrorMsg] = useState("");
   const [submittedRank, setSubmittedRank] = useState<number | null>(null);
+  const [submittedValues, setSubmittedValues] = useState<FormValues | null>(null);
 
   async function handleSearch(values: FormValues) {
     setFetchState("loading");
     setErrorMsg("");
     setSubmittedRank(values.rank);
+    setSubmittedValues(values);
 
     try {
       const params = new URLSearchParams({
@@ -94,6 +121,23 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Advisor — inline between form and results */}
+      {fetchState === "success" && submittedValues && (
+        <section className="px-4 pb-6">
+          <div className="max-w-2xl mx-auto">
+            <ChatPanel
+              key={`${submittedValues.rank}-${submittedValues.category}-${submittedValues.gender}`}
+              results={results}
+              total={total}
+              userRank={submittedValues.rank}
+              category={submittedValues.category}
+              gender={submittedValues.gender}
+              state={submittedValues.state}
+            />
+          </div>
+        </section>
+      )}
+
       {/* Results */}
       <section className="px-4 pb-20">
         <div className="max-w-6xl mx-auto">
@@ -142,6 +186,49 @@ export default function Home() {
               />
             </div>
           )}
+        </div>
+      </section>
+
+      {/* Floating chat */}
+
+      {/* FAQs */}
+      <section className="px-4 pb-16">
+        <div className="max-w-2xl mx-auto">
+          <h2 className="text-xl font-bold text-slate-900 mb-6 text-center">Frequently Asked Questions</h2>
+          <div className="space-y-2">
+            {[
+              {
+                q: "What is the difference between HS and OS quota?",
+                a: "HS (Home State) quota is reserved for students from that state at their home state's NIT — for example, a UP student gets HS quota at MNNIT Allahabad. OS (Other State) is for everyone else. HS seats are fewer but cutoffs are often lower for local students. IIITs and GFTIs use AI (All India) quota with no state restriction.",
+              },
+              {
+                q: "What does Freeze, Float, and Slide mean in JOSAA rounds?",
+                a: "After each round: Freeze means you accept your current seat and exit the process. Float means you keep your current seat but want a better option — the system will automatically upgrade you if something better opens in the next round. Slide means you want to stay at your current college but upgrade to a better branch there. Round 6 is the final round — you must Freeze or you lose your seat.",
+              },
+              {
+                q: "Is CSE at a lower NIT better than ECE at a top NIT?",
+                a: "CSE (Computer Science) is the most sought-after branch for software careers and has the highest cutoffs. ECE (Electronics and Communication Engineering) graduates from top NITs also go into software roles in large numbers, alongside core electronics and VLSI careers. The closing ranks for CSE at lower NITs and ECE at top NITs often overlap, making this one of the most common dilemmas in JOSAA counselling.",
+              },
+              {
+                q: "What is MnC (Mathematics and Computing)?",
+                a: "Mathematics and Computing (MnC) is a branch offered at select NITs that combines mathematics, statistics, and computer science. The curriculum covers algorithms, data structures, machine learning, and mathematical modelling. It has high cutoffs — often close to CSE — and attracts strong campus placements in software and analytics roles.",
+              },
+              {
+                q: "Why are IITs not showing in my results?",
+                a: "This tool covers NITs, IIITs, and GFTIs only — the colleges that fall under JOSAA's NIT+ counselling. IIT admissions use a separate JEE Advanced rank and are handled through JoSAA's IIT-specific process. If you qualified JEE Advanced, check the official JoSAA portal for IIT cutoffs.",
+              },
+              {
+                q: "What does 'borderline' mean?",
+                a: "An option is flagged as borderline when its closing rank is within 2,000 of your rank. This means the seat was just barely available at your rank last year — cutoffs can shift by a few hundred to a few thousand ranks between years, so borderline options may or may not be available in the current round.",
+              },
+              {
+                q: "Can cutoffs change significantly between rounds?",
+                a: "Yes. Closing ranks can shift by hundreds to a few thousand ranks between Round 1 and Round 6 as seats vacate and students upgrade. Options that appear unavailable in early rounds sometimes open up later. The 'borderline' flag on this tool highlights entries where your rank is within 2,000 of last year's closing rank — these are worth monitoring across rounds.",
+              },
+            ].map((item, i) => (
+              <FaqItem key={i} q={item.q} a={item.a} />
+            ))}
+          </div>
         </div>
       </section>
 

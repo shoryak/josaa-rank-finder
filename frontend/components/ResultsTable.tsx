@@ -23,40 +23,36 @@ const CSE_KEYWORDS = ["computer science", "data science", "artificial intelligen
 const EE_KEYWORDS = ["electrical", "electronics", "internet of things"];
 const MNC_KEYWORDS = ["mathematics", "mathematical"];
 
-// Prestige ranking — NITs by NIRF 2024, IIITs by reputation/cutoffs
+// NIRF 2024 Engineering Rankings — only institutions appearing in JOSAA
 // Keys must match backend short_inst() output exactly
 const PRESTIGE_RANK: Record<string, number> = {
-  // NITs (NIRF 2024)
-  "NIT Trichy": 1, "NIT, Rourkela": 2, "NIT Karnataka, Surathkal": 3,
-  "NIT, Warangal": 4, "NIT Calicut": 5, "VNIT Nagpur": 6,
-  "NIT, Kurukshetra": 7, "NIT, Silchar": 8, "MNNIT Allahabad": 9,
-  "NIT Durgapur": 10, "MNIT Jaipur": 11, "NIT, Jamshedpur": 12,
-  "NIT Patna": 13, "NIT Delhi": 14, "SVNIT Surat": 15,
-  "MANIT Bhopal": 16, "NIT Hamirpur": 17, "IIEST Shibpur": 18,
-  "NIT Goa": 19, "NIT Raipur": 20, "NIT Agartala": 21,
-  "NIT Meghalaya": 22, "NIT Sikkim": 23, "NIT, Manipur": 24,
-  "NIT, Mizoram": 25, "NIT Nagaland": 26, "NIT, Uttarakhand": 27,
-  "NIT, Andhra Pradesh": 28, "NIT, Srinagar": 29, "NIT Puducherry": 30,
-  "NIT Jalandhar": 31, "NIT Arunachal Pradesh": 32,
-  // IIITs (by reputation/JEE cutoffs)
-  "Indian Institute of Information Technology, Allahabad": 33,
-  "Atal Bihari Vajpayee Indian Institute of Information Technology & Management Gwalior": 34,
-  "Indian Institute of Information Technology, Design & Manufacturing, Kancheepuram": 35,
-  "Pt. Dwarka Prasad Mishra Indian Institute of Information Technology, Design & Manufacture Jabalpur": 36,
-  "Indian Institute of Information Technology Delhi": 37,
-  "Indian Institute of Information Technology (IIIT) Pune": 38,
-  "Indian Institute of Information Technology (IIIT) Nagpur": 39,
-  "Indian Institute of Information Technology Lucknow": 40,
-  "Indian Institute of Information Technology Bhopal": 41,
-  "Indian Institute of Information Technology Guwahati": 42,
-  "Indian Institute of Information Technology Surat": 43,
-  "Indian Institute of Information Technology Tiruchirappalli": 44,
-  "Indian Institute of Information Technology Bhagalpur": 45,
-  "International Institute of Information Technology, Bhubaneswar": 46,
-  "International Institute of Information Technology, Naya Raipur": 47,
-  // Top GFTIs
-  "Punjab Engineering College, Chandigarh": 48,
-  "Birla Institute of Technology, Mesra,  Ranchi": 49,
+  // NITs
+  "NIT Trichy": 9,
+  "NIT, Rourkela": 13,
+  "NIT Karnataka, Surathkal": 17,
+  "NIT Calicut": 21,
+  "NIT, Warangal": 28,
+  "MNIT Jaipur": 42,
+  "VNIT Nagpur": 44,
+  "NIT Durgapur": 49,
+  "NIT, Silchar": 50,
+  "NIT Patna": 53,
+  "IIEST Shibpur": 54,
+  "NIT Jalandhar": 55,
+  "MNNIT Allahabad": 62,
+  "NIT Delhi": 65,
+  "SVNIT Surat": 66,
+  "MANIT Bhopal": 81,
+  "NIT, Jamshedpur": 82,
+  "NIT Meghalaya": 83,
+  "NIT, Kurukshetra": 85,
+  "NIT Raipur": 86,
+  "NIT Hamirpur": 97,
+  "NIT Puducherry": 99,
+  // IIITs (NIRF 2024)
+  "Atal Bihari Vajpayee Indian Institute of Information Technology & Management Gwalior": 96,
+  // GFTIs (NIRF 2024)
+  "Birla Institute of Technology, Mesra,  Ranchi": 51,
 };
 
 function matchesBranch(branch: string, keywords: string[]) {
@@ -125,7 +121,7 @@ function HighlightCard({ title, accent, items, userRank, showNirf }: {
               <div className="min-w-0 flex-1 flex items-start gap-2">
                 {showNirf && (
                   <span className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-bold ${s.badge}`}>
-                    #{PRESTIGE_RANK[r.institute]}
+                    NIRF #{PRESTIGE_RANK[r.institute]}
                   </span>
                 )}
                 <div className="min-w-0">
