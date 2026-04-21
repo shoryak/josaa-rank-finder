@@ -20,7 +20,7 @@ interface ResultsTableProps {
 const BORDERLINE_MARGIN = 2000;
 
 const CSE_KEYWORDS = ["computer science", "data science", "artificial intelligence", "information technology", "computing"];
-const EE_KEYWORDS = ["electrical"];
+const EE_KEYWORDS = ["electrical", "electronics", "internet of things"];
 const MNC_KEYWORDS = ["mathematics", "mathematical"];
 
 // Prestige ranking — NITs by NIRF 2024, IIITs by reputation/cutoffs
