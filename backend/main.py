@@ -3,10 +3,11 @@ JOSAA Rank Finder — FastAPI backend
 """
 
 import os
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
+import httpx
 import pandas as pd
 from typing import Optional
 
@@ -308,6 +309,42 @@ def get_options(
 @app.get("/health")
 def health():
     return {"status": "ok", "rows_loaded": len(load_data())}
+
+
+POSTHOG_HOST = "https://us.i.posthog.com"
+POSTHOG_ASSET_HOST = "https://us-assets.i.posthog.com"
+
+
+@app.api_route("/ingest/static/{path:path}", methods=["GET", "POST", "OPTIONS", "HEAD"])
+async def proxy_posthog_assets(path: str, request: Request):
+    url = f"{POSTHOG_ASSET_HOST}/static/{path}"
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        headers = {k: v for k, v in request.headers.items() if k.lower() not in ("host", "content-length")}
+        resp = await client.request(
+            method=request.method,
+            url=url,
+            headers=headers,
+            content=await request.body(),
+            params=dict(request.query_params),
+        )
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type=resp.headers.get("content-type"))
+
+
+@app.api_route("/ingest/{path:path}", methods=["GET", "POST", "OPTIONS", "HEAD"])
+async def proxy_posthog(path: str, request: Request):
+    url = f"{POSTHOG_HOST}/{path}"
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        headers = {k: v for k, v in request.headers.items() if k.lower() not in ("host", "content-length")}
+        resp = await client.request(
+            method=request.method,
+            url=url,
+            headers=headers,
+            content=await request.body(),
+            params=dict(request.query_params),
+        )
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type=resp.headers.get("content-type"))
 
 
 # Serve Next.js static export — must be last
