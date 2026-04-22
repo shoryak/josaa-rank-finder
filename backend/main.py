@@ -10,9 +10,12 @@ from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response, StreamingResponse
+from pydantic import BaseModel, EmailStr
 import httpx
 from openai import AsyncOpenAI
 import pandas as pd
+import psycopg2
+import psycopg2.pool
 from typing import Optional
 
 app = FastAPI(title="JOSAA Rank Finder API", version="1.0.0")
@@ -26,6 +29,46 @@ app.add_middleware(
 )
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend", "out")
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
+
+_db_pool: Optional[psycopg2.pool.SimpleConnectionPool] = None
+
+
+def get_db_pool() -> Optional[psycopg2.pool.SimpleConnectionPool]:
+    global _db_pool
+    if _db_pool is None:
+        url = os.environ.get("DATABASE_URL")
+        if not url:
+            return None
+        # Supabase/Railway use postgres:// — psycopg2 needs postgresql://
+        url = url.replace("postgres://", "postgresql://", 1)
+        _db_pool = psycopg2.pool.SimpleConnectionPool(1, 5, url)
+    return _db_pool
+
+
+def init_db():
+    pool = get_db_pool()
+    if not pool:
+        print("DATABASE_URL not set — waitlist DB disabled")
+        return
+    conn = pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS waitlist (
+                    id SERIAL PRIMARY KEY,
+                    email TEXT UNIQUE NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+        conn.commit()
+        print("Waitlist table ready")
+    finally:
+        pool.putconn(conn)
+
 
 # ---------------------------------------------------------------------------
 # State → home-state institute keywords mapping
@@ -207,6 +250,7 @@ def load_data() -> pd.DataFrame:
 def startup_event():
     load_data()
     print(f"Loaded {len(_df)} rows from josaa_data.txt")
+    init_db()
 
 
 # ---------------------------------------------------------------------------
@@ -389,6 +433,34 @@ def get_college(
 @app.get("/health")
 def health():
     return {"status": "ok", "rows_loaded": len(load_data())}
+
+
+class WaitlistRequest(BaseModel):
+    email: str
+
+
+@app.post("/api/waitlist")
+def join_waitlist(body: WaitlistRequest):
+    email = body.email.strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Invalid email")
+    pool = get_db_pool()
+    if not pool:
+        raise HTTPException(status_code=503, detail="Database not configured")
+    conn = pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO waitlist (email) VALUES (%s) ON CONFLICT (email) DO NOTHING",
+                (email,)
+            )
+        conn.commit()
+        return {"ok": True}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        pool.putconn(conn)
 
 
 def _build_josaa_system(ctx: dict) -> str:

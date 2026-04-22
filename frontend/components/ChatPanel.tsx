@@ -4,6 +4,8 @@ import { useState } from "react";
 import posthog from "posthog-js";
 import { Result } from "./ResultsTable";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+
 const CSE_KW = ["computer science", "data science", "artificial intelligence", "information technology", "computing"];
 const EE_KW = ["electrical", "electronics", "internet of things"];
 const MNC_KW = ["mathematics", "mathematical"];
@@ -41,7 +43,7 @@ export default function ChatPanel({ results: _results }: ChatPanelProps) {
   const [submitted, setSubmitted] = useState(false);
   const [emailError, setEmailError] = useState("");
 
-  function handleSubscribe(e: React.FormEvent) {
+  async function handleSubscribe(e: React.FormEvent) {
     e.preventDefault();
     if (!emailInput.trim() || !emailInput.includes("@")) {
       setEmailError("Please enter a valid email.");
@@ -52,6 +54,15 @@ export default function ChatPanel({ results: _results }: ChatPanelProps) {
     if (posthog.__loaded) {
       posthog.identify(trimmed, { email: trimmed });
       posthog.capture("counsellor_waitlist_signup");
+    }
+    try {
+      await fetch(`${API_URL}/api/waitlist`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed }),
+      });
+    } catch {
+      // non-blocking — UI still confirms even if request fails
     }
     setSubmitted(true);
   }
