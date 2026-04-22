@@ -43,9 +43,12 @@ def get_db_pool() -> Optional[psycopg2.pool.SimpleConnectionPool]:
         url = os.environ.get("DATABASE_URL")
         if not url:
             return None
-        # Supabase/Railway use postgres:// — psycopg2 needs postgresql://
         url = url.replace("postgres://", "postgresql://", 1)
-        _db_pool = psycopg2.pool.SimpleConnectionPool(1, 5, url)
+        try:
+            _db_pool = psycopg2.pool.SimpleConnectionPool(1, 5, url)
+        except Exception as e:
+            print(f"DB pool creation failed: {e}")
+            return None
     return _db_pool
 
 
@@ -250,7 +253,10 @@ def load_data() -> pd.DataFrame:
 def startup_event():
     load_data()
     print(f"Loaded {len(_df)} rows from josaa_data.txt")
-    init_db()
+    try:
+        init_db()
+    except Exception as e:
+        print(f"DB init failed (waitlist disabled): {e}")
 
 
 # ---------------------------------------------------------------------------
